@@ -1,70 +1,91 @@
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-export const url =
-  "https://wft-geo-db.p.rapidapi.com/v1/geo/cities?minPopulation=1000000&namePrefix=";
-export const options = {
-  method: "GET",
-  headers: {
-    "X-RapidAPI-Key": "da71a10a2cmsh658945aaf214fb8p1bc6c8jsn05cde877a6e2",
-    "X-RapidAPI-Host": "wft-geo-db.p.rapidapi.com",
-  },
-};
+import { DateObjectUnits, DateTime } from "luxon";
 
-export const WEATHER_API_URL = "https://api.openweathermap.org/data/2.5";
-export const WEATHER_API_KEY = "d3c74176875972ce4f7b5ab7e98283bb";
+const WEATHER_API_URL = "https://api.openweathermap.org/data/2.5";
+const WEATHER_API_KEY = "d3c74176875972ce4f7b5ab7e98283bb";
 
-interface Data {
+export type IWeatherType = {
   coord: { lat: number; lon: number };
-}
+  main: {
+    temp: number;
+    feels_like: number;
+    temp_min: number;
+    temp_max: number;
+    humidity: number;
+  };
+  dt: number;
+  visibility: number;
+  clouds: { all: number };
+  sys: {
+    country: string;
+    sunrise: number;
+    sunset: number;
+  };
+  timezone: DateObjectUnits;
+  weather: [{ main: string; icon: string; description: string }];
+  name: string;
+  wind: { speed: number };
+};
+export type IForecastWeatherType = {
+  list: [
+    {
+      dt: number;
+      main: {
+        temp_min: number;
+        temp_max: number;
+      };
+      weather: [
+        {
+          icon: string;
+        }
+      ];
+    }
+  ];
+};
 
-const fetchWeatherData = async (city: string) => {
-  const url = `${WEATHER_API_URL}/weather?q=${city}&appid=${WEATHER_API_KEY}&units=metric`;
+export const fetchWeatherData = async (
+  city: string,
+  units: string
+): Promise<IWeatherType> => {
+  const url = `${WEATHER_API_URL}/weather?q=${city}&appid=${WEATHER_API_KEY}&units=${units}`;
   const response = await fetch(url);
-  const data: {
-    coord: { lat: number; lon: number };
-    main: {
-      temp: number;
-      feels_like: number;
-      temp_min: number;
-      temp_max: number;
-      humidity: number;
-    };
-    dt: number;
-    sys: { country: string; sunrise: number; sunset: number };
-    weather: [{ main: string; icon: string }];
-    wind: { speed: number };
-  } = await response.json();
-  return data;
+  return (await response.json()) as IWeatherType;
 };
 
-//looking/searching for the cities  base on the inputValue
-export const getCityInfo = async (inputValue: string) => {
-  try {
-    const response = await fetch(`${url}${inputValue}`, options);
-    const result: unknown = await response.json();
-  } catch (error) {
-    console.error(error);
-  }
+// get user geo lat & lon when location is clicked
+export const location = async (lat: number, lon: number) => {
+  const currentWeatherFetch = await fetch(
+    `${WEATHER_API_URL}/weather?lat=${lat}&lon=${lon}&appid=${WEATHER_API_KEY}&units=metric`
+  );
+  const dta = (await currentWeatherFetch.json()) as IWeatherType;
+  return dta;
 };
 
-const formattedCurrentWeather = async (city: string) => {
-  const info = getCityInfo(city);
-
-  const data = await fetchWeatherData(city);
+const formattedCurrentWeather = async (city: string, units: string) => {
+  const data = await fetchWeatherData(city, units);
   const {
     coord: { lat, lon },
     main: { temp, feels_like, temp_min, temp_max, humidity },
     dt,
+    visibility,
     sys: { country, sunrise, sunset },
+    timezone,
     weather,
+    name,
+    clouds: { all },
     wind: { speed },
   } = data;
 
-  const { main: details, icon } = weather[0];
+  const { main: details, icon, description } = weather[0];
 
   return {
+    time: formatToLocalTime(dt, timezone, "ccc"),
+    visibility,
+    all,
+    name,
+    country,
+    description,
+    dt,
+    timezone,
     lat,
     lon,
     temp,
@@ -72,7 +93,6 @@ const formattedCurrentWeather = async (city: string) => {
     temp_min,
     temp_max,
     humidity,
-    country,
     sunrise,
     sunset,
     speed,
@@ -81,4 +101,23 @@ const formattedCurrentWeather = async (city: string) => {
   };
 };
 
-export { formattedCurrentWeather };
+export const forecastWeather = async (city: string) => {
+  const { lat, lon } = await formattedCurrentWeather(city, "metric");
+  const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${WEATHER_API_KEY}&units=metric`;
+
+  const response = await fetch(url);
+  const data = (await response.json()) as IForecastWeatherType;
+  return data;
+};
+
+//middleware
+export const formatToLocalTime = (
+  secs: number,
+  Zone: DateObjectUnits,
+  format = "ccc, dd LLL yyyy' | Local time: 'hh:mm a"
+) => DateTime.fromSeconds(secs).set(Zone).toFormat(format);
+
+export const iconUrlFromeCode = (code: string) =>
+  `http://openweathermap.org/img/wn/${code}@4x.png`;
+
+export default formattedCurrentWeather;
