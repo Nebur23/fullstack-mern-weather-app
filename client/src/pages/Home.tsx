@@ -69,6 +69,8 @@ const Home: React.FunctionComponent<IHomeProps> = ({weather,setQuery,fahrenheit,
         <Navbar  setUnits={setUnits} units={units}  fahrenheit={fahrenheit} setFahrenheit={setFahrenheit}  />
       <WeekUI  forecast={forecast} />
       <DaliyUI weather={weather} fahrenheit={fahrenheit} />
+      
+
       </>
       }
     </>
